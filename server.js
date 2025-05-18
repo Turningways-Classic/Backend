@@ -6,6 +6,7 @@ const cors = require('cors');
 const { authenticate } = require('./middleware/auth');
 const authRouter = require('./routes/auth');
 const logsRouter = require('./routes/logs');
+const appointmentRouter = require('./routes/appointments')
 
 const app = express();
 
@@ -15,7 +16,10 @@ app.use(express.json());
 
 
 app.use('/api/auth', authRouter);
+app.use('/api/auth', authRouter);
+
 app.use('/api/logs', authenticate, logsRouter);
+app.use('/api/appointments', authenticate, appointmentRouter);
 
 const PORT = process.env.PORT || 4000;
 
