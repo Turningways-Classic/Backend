@@ -1,23 +1,13 @@
-require('dotenv').config();
 const nodemailer = require('nodemailer');
+require('dotenv').config();
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: process.env.EMAIL_USERNAME,      // your Gmail address
+    pass: process.env.EMAIL_PASSWORD       // your Gmail App Password (NOT your regular password)
   }
 });
 
-const sendOTP = async (email, otp) => {
-  await transporter.sendMail({
-    from: `"Trackar Access" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: 'Your OTP Code',
-    text: `Your OTP is: ${otp}`,
-  });
-};
+module.exports = transporter;
 
-module.exports = { sendOTP };
-// Compare this snippet from Backend/routes/new_user.js:
-// const express = require('express');
