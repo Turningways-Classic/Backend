@@ -13,8 +13,12 @@ exports.generateJWT = (payload, expiresIn = '24h') => {
 // Verify JWT token
 exports.verifyJWT = (token) => {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    console.log('Verifying token:', token.slice(0, 10) + '...');
+    const decoded = jwt.verify(token, JWT_SECRET);
+    console.log('Decoded token:', decoded);
+    return decoded;
   } catch (err) {
+    console.error('JWT verification failed:', err.message);
     return null;
   }
 };

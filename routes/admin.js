@@ -1,61 +1,105 @@
+//Admin management routes
 const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabaseClient');
-const { generateJWT, authenticateJWT } = require('../config/jwt');
+const { authenticateJWT } = require('../config/jwt');
 
-// Middleware: Only superadmins can proceed
+// Enhanced superadmin middleware
 const requireSuperAdmin = async (req, res, next) => {
-  const { data: admin } = await supabase
-    .from('admins')
-    .select('role')
-    .eq('auth_id', req.user.auth_id)
-    .single();
-  
-  if (admin?.role !== 'super_admin') {
-    return res.status(403).json({ error: 'Requires superadmin privileges' });
+  try {
+    if (!req.user?.id || !req.user?.auth_id) {
+      return res.status(401).json({ error: 'Invalid token payload' });
+    }
+
+    const { data: admin, error } = await supabase
+      .from('admins')
+      .select('role')
+      .or(`id.eq.${req.user.id},auth_id.eq.${req.user.auth_id}`)
+      .single();
+
+    if (error || !admin || admin.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Superadmin access required' });
+    }
+
+    req.adminId = admin.id;
+    next();
+  } catch (err) {
+    console.error('Superadmin middleware error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  next();
 };
 
-// 1. Create new admin (superadmin-only)
+// Create admin endpoint with complete error handling
 router.post('/', authenticateJWT, requireSuperAdmin, async (req, res) => {
-  const { name, email, role = 'admin' } = req.body;
+  let authUser;
+  
+  try {
+    const { name, email, role = 'admin' } = req.body;
 
-  // Validate role
-  if (!['admin', 'super_admin'].includes(role)) {
-    return res.status(400).json({ error: 'Invalid role' });
-  }
+    // Validate input
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Name and email required' });
+    }
 
-  // Create auth user
-  const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-    email,
-    email_confirm: true,
-    user_metadata: { name }
-  });
+    // Check if email exists first
+    const { data: existing } = await supabase
+      .from('admins')
+      .select('id')
+      .eq('email', email)
+      .single();
 
-  // Add to admins table
-  const { error: dbError } = await supabase
-    .from('admins')
-    .insert([{ 
-      auth_id: authUser.user.id,
-      name,
+    if (existing) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+
+    // Create auth user
+    const { data: user, error: authError } = await supabase.auth.admin.createUser({
       email,
-      role,
-      is_active: true 
-    }]);
+      email_confirm: true,
+      user_metadata: { name }
+    });
 
-  if (dbError) {
-    await supabase.auth.admin.deleteUser(authUser.user.id);
-    return res.status(500).json({ error: 'Failed to create admin record' });
+    if (authError) throw authError;
+    authUser = user; // Store for potential rollback
+
+    // Insert admin record
+    const { data: admin, error: dbError } = await supabase
+      .from('admins')
+      .insert([{
+        auth_id: authUser.user.id,
+        name,
+        email,
+        role,
+        is_active: true,
+        created_by: req.adminId
+      }])
+      .select();
+
+    if (dbError) throw dbError;
+
+    // Send setup email
+    await supabase.auth.resetPasswordForEmail(email);
+
+    return res.status(201).json({
+      message: 'Admin created successfully',
+      admin: admin[0]
+    });
+
+  } catch (error) {
+    console.error('Admin creation error:', error);
+
+    // Rollback auth user if created
+    if (authUser?.user?.id) {
+      await supabase.auth.admin.deleteUser(authUser.user.id).catch(console.error);
+    }
+
+    const status = error.__isAuthError ? 422 : 500;
+    return res.status(status).json({ 
+      error: 'Admin creation failed',
+      details: error.message,
+      code: error.code // Includes 'email_exists' etc.
+    });
   }
-
-  // Send password setup link
-  await supabase.auth.resetPasswordForEmail(email);
-
-  res.status(201).json({ 
-    message: 'Admin created. Password setup email sent.',
-    admin: { email, role } 
-  });
 });
 
 // 2. List all admins (superadmin-only)

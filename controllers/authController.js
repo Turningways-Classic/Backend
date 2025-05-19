@@ -1,3 +1,4 @@
+// This file contains routes for managing admin users
 const supabase = require('../config/supabaseClient');
 const { generateJWT, verifyJWT } = require('../config/jwt');
 
@@ -85,63 +86,47 @@ exports.staffFirstLogin = async (req, res) => {
   res.json({ message: 'Password set successfully' });
 };
 
-// Admin Login (unchanged)
-// exports.adminLogin = async (req, res) => {
-//   const { data, error } = await supabase.auth.signInWithPassword({
-//     email: req.body.email,
-//     password: req.body.password
-//   });
-
-//   if (error) return res.status(401).json({ error: 'Invalid credentials' });
-
-//   const { data: admin } = await supabase
-//     .from('admins')
-//     .select('role')
-//     .eq('auth_id', data.user.id)
-//     .single();
-
-//   if (!admin) {
-//     await supabase.auth.signOut();
-//     return res.status(403).json({ error: 'Admin access only' });
-//   }
-
-//   res.json({ token: data.session.access_token, role: admin.role });
-// };
-
-// Admin Login (with role check)
-// This function is for admin login, which checks if the user is an admin and returns the role.
+//admin login
+// This function handles admin login
 exports.adminLogin = async (req, res) => {
   const { email, password } = req.body;
 
-  // 1. Authenticate with Supabase Auth
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  });
-
+  // 1. Authenticate
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
+    console.error('Auth error:', error.message);
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  // 2. Verify user is an admin AND get role
+  // DEBUG: Log the auth user ID
+  console.log('Authenticated user ID:', data.user.id);
+
+  // 2. Verify admin status
   const { data: admin, error: adminError } = await supabase
     .from('admins')
-    .select('id, role')
-    .eq('auth_id', data.user.id)
+    .select('id, role, auth_id')
+    .eq('auth_id', data.user.id) // Critical: Compare with logged-in user's ID
     .single();
+
+  console.log('Raw admin object:', admin);
+console.log('Admin lookup:', { 
+  auth_id_from_login: data.user.id,
+  auth_id_in_admins_table: admin?.auth_id 
+});
+
 
   if (!admin || adminError) {
     await supabase.auth.signOut();
+    console.error('Admin record mismatch');
     return res.status(403).json({ error: 'Admin access only' });
   }
 
-  // 3. Return token with role info
-  res.json({ 
-    token: data.session.access_token,
-    admin: {
-      id: admin.id,
-      role: admin.role, // 'super_admin' or 'admin'
-      isSuperAdmin: admin.role === 'super_admin' // Explicit flag
-    }
+  const token = generateJWT({
+    id: admin.id,
+    auth_id: admin.auth_id,
+    role: admin.role,
+    isSuperAdmin: admin.role === 'super_admin'
   });
+
+  res.json({ token, admin });
 };
