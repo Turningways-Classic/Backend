@@ -41,7 +41,7 @@ exports.staffLogin = async (req, res) => {
   if (!isMatch) return res.status(401).json({ error: 'Invalid ID or unknown credentials' });
 
   await supabase
-    .from('access_logs')
+    .from('logs')
     .insert([{ phone: staff.phone, type: 'staff', sign_in: new Date().toISOString() }]);
 
   const token = generateToken({ id: staff.id, role: 'staff' });
@@ -65,7 +65,7 @@ exports.staffLogout = async (req, res) => {
   if (!staff) return res.status(404).json({ error: 'Staff not found' });
 
   const { data: activeLog } = await supabase
-    .from('access_logs')
+    .from('logs')
     .select('*')
     .eq('phone', staff.phone)
     .eq('type', 'staff')
@@ -77,7 +77,7 @@ exports.staffLogout = async (req, res) => {
   if (!activeLog) return res.status(400).json({ error: 'User not currently signed in' });
 
   await supabase
-    .from('access_logs')
+    .from('logs')
     .update({ sign_out: new Date().toISOString() })
     .eq('id', activeLog.id);
 
