@@ -125,12 +125,12 @@ exports.visitorLogin = async (req, res) => {
 };
 
 exports.visitorLogout = async (req, res) => {
-  const { phone } = req.body;
+  const { phoneOrEmail } = req.body;
 
   const { data, error } = await supabase
     .from('logs')
     .select('*')
-    .eq('phone', phone)
+    .or(`phone.eq.${phoneOrEmail},email.eq.${phoneOrEmail}`)
     .is('sign_out', null)
     .order('sign_in', { ascending: false })
     .limit(1)
@@ -139,7 +139,7 @@ exports.visitorLogout = async (req, res) => {
   if (!data) return res.status(400).json({ error: 'User not currently signed in' });
 
   await supabase
-    .from('access_logs')
+    .from('logs')
     .update({ sign_out: new Date().toISOString() })
     .eq('id', data.id);
 
