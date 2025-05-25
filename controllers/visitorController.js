@@ -59,7 +59,7 @@ exports.visitorSignup = async (req, res) => {
 
   if (error) return res.status(400).json({ error: error.message });
 
-  await sendEmail(email, 'Your OTP Code', `<h1>Your OTP: ${otp}</h1>`);
+  await sendEmail(email, 'Your OTP Verification Code', `<p>Hello ${name},</p><p>Your OTP code is <b>${otp}</b>. It will expire in 10 minutes.</p>`);
   res.json({ message: 'OTP sent to email. Redirect to verify screen.' });
 };
 
@@ -144,4 +144,91 @@ exports.visitorLogout = async (req, res) => {
     .eq('id', data.id);
 
   res.json({ message: 'Signed out successfully' });
+};
+
+exports.storeVisitorAppointment = async (req, res) => {
+  const {
+    phoneOrEmail,
+    appointment_date,
+    purpose_of_visit,
+    person_to_see,
+    companions,
+    devices,
+  } = req.body;
+
+  try {
+    const { data: visitor, error } = await supabase
+      .from('visitors')
+      .select('id')
+      .or(`email.eq.${phoneOrEmail},phone.eq.${phoneOrEmail}`)
+      .eq('verified', true)
+      .single();
+
+    if (error || !visitor) {
+      return res.status(404).json({ error: 'Verified visitor not found' });
+    }
+
+    const { error: insertError } = await supabase
+      .from('visitor_appointments')
+      .insert([{
+        visitor_id: visitor.id,
+        appointment_date,
+        purpose_of_visit,
+        person_to_see,
+        companions,
+        devices,
+      }]);
+
+    if (insertError) {
+      return res.status(500).json({ error: insertError.message });
+    }
+
+    res.status(201).json({ message: 'Appointment details saved successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+};
+
+
+exports.uploadVisitorPhoto = async (req, res) => {
+  const { phoneOrEmail, image } = req.body;
+
+  const { data: visitor, error } = await supabase
+    .from('visitors')
+    .select('id')
+    .or(`email.eq.${phoneOrEmail},phone.eq.${phoneOrEmail}`)
+    .eq('verified', true)
+    .maybeSingle();
+
+  if (error || !visitor) {
+    return res.status(404).json({ error: 'Visitor not found or not verified' });
+  }
+
+  const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+  const buffer = Buffer.from(base64Data, 'base64');
+  const filename = `visitor_${visitor.id}_${Date.now()}.jpg`;
+
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('visitor-photos')
+    .upload(filename, buffer, {
+      contentType: 'image/jpeg',
+      upsert: true,
+    });
+
+  if (uploadError) {
+    return res.status(500).json({ error: 'Image upload failed', details: uploadError.message });
+  }
+
+  const photoUrl = `https://${process.env.SUPABASE_PROJECT_ID}.supabase.co/storage/v1/object/public/visitor-photos/${filename}`;
+
+  const { error: updateError } = await supabase
+    .from('visitors')
+    .update({ photo_url: photoUrl })
+    .eq('id', visitor.id);
+
+  if (updateError) {
+    return res.status(500).json({ error: 'Failed to update photo URL' });
+  }
+
+  res.json({ message: 'Photo uploaded successfully', photoUrl });
 };

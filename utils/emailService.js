@@ -10,7 +10,7 @@ const transporter = nodemailer.createTransport({
 
 async function sendEmail(to, subject, html) {
   await transporter.sendMail({
-    from: process.env.GMAIL_USER,
+    from:`"Trackar" <${process.env.GMAIL_USER}>`,
     to,
     subject,
     html,
