@@ -1,13 +1,17 @@
-//Raji@olalekan1234
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const logsRouter = require('./routes/logs');
+const visitorRoutes = require('./routes/visitorRoutes');
+const staffRoutes = require('./routes/staffRoutes');
+require('./cron/autoSignOut');
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
+app.use('/api/staff', staffRoutes);
+app.use('/api/visitor', visitorRoutes);
 
-app.use('/api/logs', logsRouter);
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Trakar backend running on port ${PORT}`));
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
