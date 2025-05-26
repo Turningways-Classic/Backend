@@ -232,3 +232,42 @@ exports.uploadVisitorPhoto = async (req, res) => {
 
   res.json({ message: 'Photo uploaded successfully', photoUrl });
 };
+
+exports.getVisitorProfile = async (req, res) => {
+  const { phoneOrEmail } = req.query;
+
+  if (!phoneOrEmail) {
+    return res.status(400).json({ error: 'Phone number or email is required' });
+  }
+
+  // Get the visitor by phone or email
+  const { data: visitor, error: visitorError } = await supabase
+    .from('visitors')
+    .select('id, name, email')
+    .or(`phone.eq.${phoneOrEmail},email.eq.${phoneOrEmail}`)
+    .maybeSingle();
+
+  if (visitorError || !visitor) {
+    return res.status(404).json({ error: 'Visitor not found' });
+  }
+
+  // Get the latest appointment for the visitor
+  const { data: appointment, error: appointmentError } = await supabase
+    .from('visitor_appointments')
+    .select('purpose')
+    .eq('visitor_id', visitor.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (appointmentError) {
+    return res.status(500).json({ error: 'Failed to fetch appointment info' });
+  }
+
+  res.json({
+    name: visitor.name,
+    email: visitor.email,
+    purpose: appointment?.purpose || 'N/A'
+  });
+};
+
