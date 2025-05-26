@@ -14,7 +14,7 @@ const otpLimiter = rateLimit({
 });
 
 //Register a new user
-router.post('/register', otpLimiter, async (req, res) => {
+router.post('/', otpLimiter, async (req, res) => {
     const { name, email, phone_number, pin } = req.body;
 
     //Validate pin
@@ -31,7 +31,7 @@ router.post('/register', otpLimiter, async (req, res) => {
         .from('users')
         .select('id')
         .eq('email', email)
-        .maybeSingle(); //maybeSingle() instead of single() to return null instead of throwing an error if no rows exist
+        .maybeSingle(); 
 
     if (existingUser) {
         return res.status(400).json({ error: 'User already exists' });
