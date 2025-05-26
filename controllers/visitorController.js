@@ -18,7 +18,8 @@ exports.otpLimiter = rateLimit({
 exports.visitorSignup = async (req, res) => {
   const { name, phone, email, pin } = req.body;
 
-  if (!/^\d{4,6}$/.test(pin)) {
+  const pinString = String(pin);
+  if (!/^\d{4,6}$/.test(pinString)) {
     return res.status(400).json({ error: 'PIN must be 4 to 6 digits.' });
   }
 

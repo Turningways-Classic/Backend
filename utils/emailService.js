@@ -6,6 +6,9 @@ const transporter = nodemailer.createTransport({
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_PASS,
   },
+  tls: {
+    rejectUnauthorized: false, // 👈 This bypasses the cert check
+  },
 });
 
 async function sendEmail(to, subject, html) {
