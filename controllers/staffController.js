@@ -44,7 +44,7 @@ exports.staffLogin = async (req, res) => {
     .from('logs')
     .insert([{ phone: staff.phone, type: 'staff', sign_in: new Date().toISOString() }]);
 
-  const token = generateToken({ id: staff.id, role: 'staff' });
+  const token = generateToken({ id: staff.id, role: staff.role });
 
   res.json({
     message: 'Staff signed in successfully',

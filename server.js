@@ -4,6 +4,7 @@ const cors = require('cors');
 const visitorRoutes = require('./routes/visitorRoutes');
 const generalRoutes = require('./routes/generalRoutes');
 const staffRoutes = require('./routes/staffRoutes');
+const superAdminRoutes = require('./routes/superAdminRoutes');
 require('./cron/autoSignOut');
 
 const app = express();
@@ -13,6 +14,7 @@ app.use(express.json());
 app.use('/api/staff', staffRoutes);
 app.use('/api/visitor', visitorRoutes);
 app.use('/api', generalRoutes);
+app.use('/api/superadmin', superAdminRoutes);
 
 
 const PORT = process.env.PORT || 5000;
