@@ -3,24 +3,24 @@ const supabase = require('../supabase/client');
 const generateToken = require('../utils/generateToken');
 const sendEmail = require('../utils/emailService');
 
-function generateRandomPassword(length = 8) {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+function generatePin() {
+  return Math.floor(1000 + Math.random() * 9000).toString();
 }
+
 
 exports.registerStaff = async (req, res) => {
   const { name, gender, phone, email, department, jobTitle } = req.body;
 
-  const password = generateRandomPassword();
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const pin  = generatePin();
+  const hashedPin = await bcrypt.hash(pin, 10);
 
   const { error } = await supabase
     .from('staff')
-    .insert([{ name, gender, phone, email, department, job_title: jobTitle, password: hashedPassword, is_first_login: true }]);
+    .insert([{ name, gender, phone, email, department, job_title: jobTitle, password: hashedPin, is_first_login: true }]);
 
   if (error) return res.status(400).json({ error: error.message });
 
-  await sendEmail(email, 'Your Trakar Staff Login', `<p>Welcome ${name}, your temporary password is <strong>${password}</strong>. Please change it on first login.</p>`);
+  await sendEmail(email, 'Your Trakar Staff Login', `<p>Welcome ${name}, your temporary pin is <strong>${pin}</strong>. Please change it on first login.</p>`);
 
   res.json({ message: 'Staff created and password emailed.' });
 };
