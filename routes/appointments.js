@@ -10,7 +10,7 @@ const supabase = createClient(
 );
 
 router.post('/', async (req, res) => {
-  const {purpose, whomToSee, companions, organisation } = req.body;
+  const {purpose, whomToSee, companions } = req.body;
 
   
   if (!purpose || !whomToSee) {
@@ -22,8 +22,6 @@ router.post('/', async (req, res) => {
           purpose, 
           whom_to_see: whomToSee, 
           companions: companions || null,
-          organisation : organisation,
-
           created_at: new Date()
         }
       ]);
@@ -35,7 +33,7 @@ router.post('/', async (req, res) => {
 
 router.get('/', async (req, res) => {
   
-  const { purpose, whomToSee, companions, organisation } = req.query;
+  const { purpose, whomToSee, companions } = req.query;
   
  
   let query = supabase.from('appointments').select('*');
@@ -47,10 +45,6 @@ router.get('/', async (req, res) => {
   
   if (whomToSee) {
     query = query.eq('whom_to_see', whomToSee);
-  }
-
-  if (organisation) {
-    query = query.eq('organisation', organisation);
   }
   
   if (companions) {

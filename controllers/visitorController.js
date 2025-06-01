@@ -162,11 +162,10 @@ exports.storeVisitorAppointment = async (req, res) => {
       .from('visitors')
       .select('id')
       .or(`email.eq.${phoneOrEmail},phone.eq.${phoneOrEmail}`)
-      .eq('verified', true)
-      .single();
+      .single(); 
 
     if (error || !visitor) {
-      return res.status(404).json({ error: 'Verified visitor not found' });
+      return res.status(404).json({ error: 'Visitor not found' });
     }
 
     const { error: insertError } = await supabase
@@ -189,6 +188,7 @@ exports.storeVisitorAppointment = async (req, res) => {
     res.status(500).json({ error: 'Server error', details: err.message });
   }
 };
+
 
 
 exports.uploadVisitorPhoto = async (req, res) => {
