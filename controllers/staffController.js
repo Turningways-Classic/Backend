@@ -3,24 +3,24 @@ const supabase = require('../supabase/client');
 const generateToken = require('../utils/generateToken');
 const sendEmail = require('../utils/emailService');
 
-function generateRandomPassword(length = 8) {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+function generatePin() {
+  return Math.floor(1000 + Math.random() * 9000).toString();
 }
+
 
 exports.registerStaff = async (req, res) => {
   const { name, gender, phone, email, department, jobTitle } = req.body;
 
-  const password = generateRandomPassword();
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const pin  = generatePin();
+  const hashedPin = await bcrypt.hash(pin, 10);
 
   const { error } = await supabase
     .from('staff')
-    .insert([{ name, gender, phone, email, department, job_title: jobTitle, password: hashedPassword, is_first_login: true }]);
+    .insert([{ name, gender, phone, email, department, job_title: jobTitle, password: hashedPin, is_first_login: true }]);
 
   if (error) return res.status(400).json({ error: error.message });
 
-  await sendEmail(email, 'Your Trakar Staff Login', `<p>Welcome ${name}, your temporary password is <strong>${password}</strong>. Please change it on first login.</p>`);
+  await sendEmail(email, 'Your Trakar Staff Login', `<p>Welcome ${name}, your temporary pin is <strong>${pin}</strong>. Please change it on first login.</p>`);
 
   res.json({ message: 'Staff created and password emailed.' });
 };
@@ -44,7 +44,7 @@ exports.staffLogin = async (req, res) => {
     .from('logs')
     .insert([{ phone: staff.phone, type: 'staff', sign_in: new Date().toISOString() }]);
 
-  const token = generateToken({ id: staff.id, role: 'staff' });
+  const token = generateToken({ id: staff.id, role: staff.role });
 
   res.json({
     message: 'Staff signed in successfully',
@@ -108,4 +108,31 @@ exports.changePassword = async (req, res) => {
   if (updateError) return res.status(500).json({ error: updateError.message });
 
   res.json({ message: 'Password updated successfully. You can now log in normally.' });
+};
+
+exports.getDashboardStats = async (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
+
+  // Today's check-ins (staff + visitors)
+  const { data: todayLogs } = await supabase
+    .from('logs')
+    .select('*')
+    .gte('sign_in', `${today}T00:00:00`);
+
+  // Failed access attempts (example: no matching user)
+  const { data: failedLogs } = await supabase
+    .from('failed_access_logs') // Ensure this table exists
+    .select('*')
+    .gte('created_at', `${today}T00:00:00`);
+
+  res.json({
+    today_checkins: todayLogs.length,
+    failed_access: failedLogs.length,
+    active_devices: 550, // Hardcoded for now (update with real data)
+  });
+};
+
+exports.getAllUsers = async (req, res) => {
+  const { data } = await supabase.from('staff').select('*');
+  res.json(data);
 };
