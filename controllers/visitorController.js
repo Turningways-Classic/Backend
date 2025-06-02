@@ -102,27 +102,56 @@ exports.verifyVisitorOTP = async (req, res) => {
 };
 
 exports.visitorLogin = async (req, res) => {
-  const { phoneOrEmail } = req.body;
+  const { phoneOrEmail, pin } = req.body;
 
-  const { data: visitor } = await supabase
-    .from('visitors')
-    .select('*')
-    .or(`phone.eq.${phoneOrEmail},email.eq.${phoneOrEmail}`)
-    .eq('verified', true)
-    .single();
+  try {
+    // 1. Find visitor - use maybeSingle() instead of single()
+    const { data: visitor, error } = await supabase
+      .from('visitors')
+      .select('*')
+      .or(`phone.eq.${phoneOrEmail},email.eq.${phoneOrEmail}`)
+      .eq('verified', true)
+      .maybeSingle(); // Changed from .single() to .maybeSingle()
 
-  if (!visitor) return res.status(404).json({ error: 'User has no record, kindly sign up' });
+    // Handle the error from the query
+    if (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error occurred' });
+    }
 
-  await supabase
-    .from('logs')
-    .insert([{ phone: visitor.phone, type: 'visitor', sign_in: new Date().toISOString() }]);
+    // Check if visitor exists
+    if (!visitor) {
+      return res.status(404).json({ error: 'User has no record, kindly sign up' });
+    }
 
-  const token = generateToken({ id: visitor.id, role: 'visitor' });
+    // 2. Verify PIN
+    const isPinValid = await bcrypt.compare(pin, visitor.pin);
+    if (!isPinValid) {
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
 
-  await sendEmail(visitor.email, 'Sign In Confirmation', `<p>You have signed in at ${new Date().toLocaleString()}</p>`);
+    // 3. Proceed with login
+    await supabase
+      .from('logs')
+      .insert([{ 
+        phone: visitor.phone, 
+        type: 'visitor', 
+        sign_in: new Date().toISOString() 
+      }]);
 
-  res.json({ message: 'Signed in successfully', token });
+    const token = generateToken({ id: visitor.id, role: 'visitor' });
+
+    res.json({ 
+      message: 'Signed in successfully', 
+      token 
+    });
+
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Server error occurred during login' });
+  }
 };
+
 
 exports.visitorLogout = async (req, res) => {
   const { phoneOrEmail } = req.body;

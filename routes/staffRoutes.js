@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const {adminOnly} = require('../middleware/authMiddleware');
+const { isAdmin } = require('../middleware/authMiddleware'); // Updated import
 const staffController = require('../controllers/staffController');
 
-// Admin creates staff
-router.post('/staff/register', adminOnly, staffController.registerStaff);
+// Admin-only routes
+router.post('/register', isAdmin, staffController.registerStaff); // Creates regular staff
+router.get('/dashboard/stats', isAdmin, staffController.getDashboardStats); // Dashboard analytics
+router.get('/users', isAdmin, staffController.getAllUsers); // Fetch all users
 
-// Staff login (QR ID or phone/email + PIN)
-router.post('/staff/login', staffController.staffLogin);
-
-// Staff logout (QR ID or phone/email)
-router.post('/staff/logout', staffController.staffLogout);
+// Staff auth routes (no middleware)
+router.post('/login', staffController.staffLogin);
+router.post('/logout', staffController.staffLogout);
 
 module.exports = router;

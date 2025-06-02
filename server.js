@@ -16,7 +16,5 @@ app.use('/api/visitor', visitorRoutes);
 app.use('/api', generalRoutes);
 app.use('/api/superadmin', superAdminRoutes);
 
-
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Trakar backend running on port ${PORT}`));
-
