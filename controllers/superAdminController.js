@@ -11,7 +11,7 @@ function generatePin() {
 exports.createAdmin = async (req, res) => {
   const { name, gender, phone, email, department, job_title } = req.body;
 
-  const tempPin = generatePin
+  const tempPin = generatePin()
   const hashedPassword = await bcrypt.hash(tempPin, 10);
 
   const { error } = await supabase.from('staff').insert([{
@@ -26,6 +26,8 @@ exports.createAdmin = async (req, res) => {
   }]);
 
   if (error) return res.status(400).json({ error: error.message });
+
+  console.log(`pin: ${tempPin}`); // For debugging, remove in production
 
   await sendEmail(email, 'Admin Account Created', `
     <p>Welcome, ${name}. You have been registered as an Admin on Trakar.</p>
