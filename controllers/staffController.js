@@ -114,3 +114,30 @@ exports.changePassword = async (req, res) => {
 
   res.json({ message: 'Password updated successfully. You can now log in normally.' });
 };
+
+exports.getDashboardStats = async (req, res) => {
+  const today = new Date().toISOString().split('T')[0];
+
+  // Today's check-ins (staff + visitors)
+  const { data: todayLogs } = await supabase
+    .from('logs')
+    .select('*')
+    .gte('sign_in', `${today}T00:00:00`);
+
+  // Failed access attempts (example: no matching user)
+  const { data: failedLogs } = await supabase
+    .from('failed_access_logs') // Ensure this table exists
+    .select('*')
+    .gte('created_at', `${today}T00:00:00`);
+
+  res.json({
+    today_checkins: todayLogs.length,
+    failed_access: failedLogs.length,
+    active_devices: 550, // Hardcoded for now (update with real data)
+  });
+};
+
+exports.getAllUsers = async (req, res) => {
+  const { data } = await supabase.from('staff').select('*');
+  res.json(data);
+};

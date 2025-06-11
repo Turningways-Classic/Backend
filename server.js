@@ -27,7 +27,5 @@ app.get('/staff-logout', (req, res) => {
   res.render('logout');
 });
 
-
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Trakar backend running on port ${PORT}`));
-
