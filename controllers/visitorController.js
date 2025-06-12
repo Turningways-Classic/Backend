@@ -103,27 +103,56 @@ exports.verifyVisitorOTP = async (req, res) => {
 };
 
 exports.visitorLogin = async (req, res) => {
-  const { phoneOrEmail } = req.body;
+  const { phoneOrEmail, pin } = req.body;
 
-  const { data: visitor } = await supabase
-    .from('visitors')
-    .select('*')
-    .or(`phone.eq.${phoneOrEmail},email.eq.${phoneOrEmail}`)
-    .eq('verified', true)
-    .single();
+  try {
+    // 1. Find visitor - use maybeSingle() instead of single()
+    const { data: visitor, error } = await supabase
+      .from('visitors')
+      .select('*')
+      .or(`phone.eq.${phoneOrEmail},email.eq.${phoneOrEmail}`)
+      .eq('verified', true)
+      .maybeSingle(); // Changed from .single() to .maybeSingle()
 
-  if (!visitor) return res.status(404).json({ error: 'User has no record, kindly sign up' });
+    // Handle the error from the query
+    if (error) {
+      console.error('Database error:', error);
+      return res.status(500).json({ error: 'Database error occurred' });
+    }
 
-  await supabase
-    .from('logs')
-    .insert([{ phone: visitor.phone, type: 'visitor', sign_in: new Date().toISOString() }]);
+    // Check if visitor exists
+    if (!visitor) {
+      return res.status(404).json({ error: 'User has no record, kindly sign up' });
+    }
 
-  const token = generateToken({ id: visitor.id, role: 'visitor' });
+    // 2. Verify PIN
+    const isPinValid = await bcrypt.compare(pin, visitor.pin);
+    if (!isPinValid) {
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
 
-  await sendEmail(visitor.email, 'Sign In Confirmation', `<p>You have signed in at ${new Date().toLocaleString()}</p>`);
+    // 3. Proceed with login
+    await supabase
+      .from('logs')
+      .insert([{ 
+        phone: visitor.phone, 
+        type: 'visitor', 
+        sign_in: new Date().toISOString() 
+      }]);
 
-  res.json({ message: 'Signed in successfully', token });
+    const token = generateToken({ id: visitor.id, role: 'visitor' });
+
+    res.json({ 
+      message: 'Signed in successfully', 
+      token 
+    });
+
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Server error occurred during login' });
+  }
 };
+
 
 exports.visitorLogout = async (req, res) => {
   const { phoneOrEmail } = req.body;
@@ -162,11 +191,10 @@ exports.storeVisitorAppointment = async (req, res) => {
       .from('visitors')
       .select('id')
       .or(`email.eq.${phoneOrEmail},phone.eq.${phoneOrEmail}`)
-      .eq('verified', true)
-      .single();
+      .single(); 
 
     if (error || !visitor) {
-      return res.status(404).json({ error: 'Verified visitor not found' });
+      return res.status(404).json({ error: 'Visitor not found' });
     }
 
     const { error: insertError } = await supabase
@@ -189,6 +217,7 @@ exports.storeVisitorAppointment = async (req, res) => {
     res.status(500).json({ error: 'Server error', details: err.message });
   }
 };
+
 
 
 exports.uploadVisitorPhoto = async (req, res) => {
@@ -233,3 +262,42 @@ exports.uploadVisitorPhoto = async (req, res) => {
 
   res.json({ message: 'Photo uploaded successfully', photoUrl });
 };
+
+exports.getVisitorProfile = async (req, res) => {
+  const { phoneOrEmail } = req.query;
+
+  if (!phoneOrEmail) {
+    return res.status(400).json({ error: 'Phone number or email is required' });
+  }
+
+  // Get the visitor by phone or email
+  const { data: visitor, error: visitorError } = await supabase
+    .from('visitors')
+    .select('id, name, email')
+    .or(`phone.eq.${phoneOrEmail},email.eq.${phoneOrEmail}`)
+    .maybeSingle();
+
+  if (visitorError || !visitor) {
+    return res.status(404).json({ error: 'Visitor not found' });
+  }
+
+  // Get the latest appointment for the visitor
+  const { data: appointment, error: appointmentError } = await supabase
+    .from('visitor_appointments')
+    .select('purpose')
+    .eq('visitor_id', visitor.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (appointmentError) {
+    return res.status(500).json({ error: 'Failed to fetch appointment info' });
+  }
+
+  res.json({
+    name: visitor.name,
+    email: visitor.email,
+    purpose: appointment?.purpose || 'N/A'
+  });
+};
+
