@@ -31,6 +31,8 @@ exports.createAdmin = async (req, res) => {
 
   if (error) return res.status(400).json({ error: error.message });
 
+  console.log(`pin: ${tempPin}`); // For debugging, remove in production
+
   await sendEmail(email, 'Admin Account Created', `
     <p>Welcome, ${name}. You are now an Admin on Trakar.</p>
     <p>Temporary PIN: <strong>${tempPin}</strong></p>
