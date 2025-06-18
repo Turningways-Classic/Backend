@@ -40,5 +40,5 @@ jobs:
         with:
           app-name: 'trackar-backend'
           slot-name: 'production'
-          package: node-app
+          package: .
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_AC5A40286691459699D0238B3C1A84F4 }}
