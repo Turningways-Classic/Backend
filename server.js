@@ -5,7 +5,7 @@ const path = require('path');
 const visitorRoutes = require('./routes/visitorRoutes');
 const generalRoutes = require('./routes/generalRoutes');
 const staffRoutes = require('./routes/staffRoutes');
-const superAdminRoutes = require('./routes/superAdminRoutes');
+// const superAdminRoutes = require('./routes/superAdminRoutes');
 require('./cron/autoSignOut');
 
 const app = express();
@@ -19,7 +19,7 @@ app.use(express.json());
 app.use('/api/staff', staffRoutes);
 app.use('/api/visitor', visitorRoutes);
 app.use('/api', generalRoutes);
-app.use('/api/superadmin', superAdminRoutes);
+// app.use('/api/superadmin', superAdminRoutes);
 app.get('/staff-signin', (req, res) => {
   res.render('staff-signin');
 });
