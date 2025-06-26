@@ -8,19 +8,23 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '20'
-        
+
     - name: Install dependencies
       run: npm install --production
-      
-    - name: Deploy to Azure
+
+    - name: Build (placeholder)
+      run: npm run build
+
+    - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v2
       with:
         app-name: 'trackar-backend'
