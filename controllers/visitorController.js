@@ -18,7 +18,8 @@ exports.otpLimiter = rateLimit({
 exports.visitorSignup = async (req, res) => {
   const { name, phone, email, pin } = req.body;
 
-  if (!/^\d{4,6}$/.test(pin)) {
+  const pinString = String(pin);
+  if (!/^\d{4,6}$/.test(pinString)) {
     return res.status(400).json({ error: 'PIN must be 4 to 6 digits.' });
   }
 
@@ -190,11 +191,10 @@ exports.storeVisitorAppointment = async (req, res) => {
       .from('visitors')
       .select('id')
       .or(`email.eq.${phoneOrEmail},phone.eq.${phoneOrEmail}`)
-      .eq('verified', true)
-      .single();
+      .single(); 
 
     if (error || !visitor) {
-      return res.status(404).json({ error: 'Verified visitor not found' });
+      return res.status(404).json({ error: 'Visitor not found' });
     }
 
     const { error: insertError } = await supabase
@@ -217,6 +217,7 @@ exports.storeVisitorAppointment = async (req, res) => {
     res.status(500).json({ error: 'Server error', details: err.message });
   }
 };
+
 
 
 exports.uploadVisitorPhoto = async (req, res) => {

@@ -9,16 +9,19 @@ function generatePin() {
 
 
 exports.registerStaff = async (req, res) => {
-  const { name, gender, phone, email, department, jobTitle } = req.body;
+  const { name, gender, phone, email, department, jobTitle, qr_code_id } = req.body;
 
   const pin  = generatePin();
   const hashedPin = await bcrypt.hash(pin, 10);
 
   const { error } = await supabase
     .from('staff')
-    .insert([{ name, gender, phone, email, department, job_title: jobTitle, password: hashedPin, is_first_login: true }]);
+    .insert([{ name, gender, phone, email, department, job_title: jobTitle, qr_code_id, password: hashedPin, is_first_login: true }]);
+
 
   if (error) return res.status(400).json({ error: error.message });
+
+  console.log(`Temporary PIN for ${name}: ${pin}`); // For debugging, remove in production
 
   await sendEmail(email, 'Your Trakar Staff Login', `<p>Welcome ${name}, your temporary pin is <strong>${pin}</strong>. Please change it on first login.</p>`);
 
@@ -47,6 +50,7 @@ exports.staffLogin = async (req, res) => {
   const token = generateToken({ id: staff.id, role: staff.role });
 
   res.json({
+    staff,
     message: 'Staff signed in successfully',
     token,
     is_first_login: staff.is_first_login,
@@ -82,6 +86,7 @@ exports.staffLogout = async (req, res) => {
     .eq('id', activeLog.id);
 
   res.json({ message: 'Staff signed out successfully' });
+
 };
 
 exports.changePassword = async (req, res) => {
