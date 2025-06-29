@@ -49,3 +49,41 @@ exports.getAdmins = async (req, res) => {
 
   res.status(200).json(admins);
 };
+
+exports.createOrganization = async (req, res) => {
+  const { name, adminEmail } = req.body;
+
+  // 1. Create Organization
+  const { data: org, error: orgError } = await supabase
+    .from('organizations')
+    .insert([{ 
+      name, 
+      creator_id: req.user.id,
+      subdomain: name.toLowerCase().replace(/\s+/g, '-')
+    }])
+    .select()
+    .single();
+
+  if (orgError) return res.status(400).json({ error: orgError.message });
+
+  // 2. Set creator as Superadmin
+  const { error: roleError } = await supabase
+    .from('staff')
+    .update({ 
+      role: 'superadmin',
+      organization_id: org.id 
+    })
+    .eq('id', req.user.id);
+
+  if (roleError) return res.status(400).json({ error: roleError.message });
+
+  // 3. Send welcome email
+  await sendEmail(adminEmail, 'Organization Created', `
+    <h1>${name} is ready!</h1>
+    <p>You have superadmin access.</p>
+  `);
+
+  res.json(org);
+};
+
+// module.exports = { createOrganization };

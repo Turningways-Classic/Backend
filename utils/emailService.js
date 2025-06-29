@@ -1,24 +1,17 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require('resend');
 
-// Mailtrap SMTP configuration
-const transporter = nodemailer.createTransport({
-  host: "sandbox.smtp.mailtrap.io",
-  port: 2525,
-  auth: {
-    user: process.env.MAILTRAP_USER,  // Example: "a1b2c3d4e5f6g7"
-    pass: process.env.MAILTRAP_PASS   // Example: "1a2b3c4d5e6f"
-  }
-});
+// Initialize Resend with your API key
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function sendEmail(to, subject, html) {
   try {
-    await transporter.sendMail({
-      from: '"Trackar" <no-reply@trackar-demo.com>',  // Can be any fake domain
+    await resend.emails.send({
+      from: 'Trackar <no-reply@yourdomain.com>',  // Use your actual domain here
       to,
       subject,
       html,
     });
-    console.log("Email sent to Mailtrap inbox");
+    console.log("Email sent via Resend");
   } catch (error) {
     console.error("Email error:", error);
   }
