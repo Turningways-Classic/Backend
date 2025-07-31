@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Staff Face Enrollment</title>
+  <script defer src="https://unpkg.com/face-api.js"></script>
+</head>
+<body>
+  <h2>Enroll Staff Face</h2>
+
+  <form id="enrollForm">
+    <input type="email" id="email" placeholder="Enter staff email" required />
+    <br><br>
+    <video id="video" width="300" height="225" autoplay muted></video>
+    <br><br>
+    <button type="submit">Capture & Enroll</button>
+  </form>
+
+  <script>
+    const video = document.getElementById('video');
+
+    Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri('/models/tiny_face_detector'),
+      faceapi.nets.faceRecognitionNet.loadFromUri('/models/face_recognition'),
+      faceapi.nets.faceLandmark68Net.loadFromUri('/models/face_landmark_68')
+    ]).then(startVideo);
+
+    function startVideo() {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => video.srcObject = stream)
+        .catch(err => console.error('Camera error:', err));
+    }
+
+    document.getElementById('enrollForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('email').value;
+
+      const detection = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        alert('No face detected. Please try again.');
+        return;
+      }
+
+      const descriptor = Array.from(detection.descriptor); // Float32Array → Array
+
+      const res = await fetch('/face-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, face_descriptor: descriptor })
+      });
+
+      const result = await res.json();
+
+      alert(result.registered ? 'Face enrolled successfully!' : 'Enrollment failed.');
+    });
+  </script>
+</body>
+</html>

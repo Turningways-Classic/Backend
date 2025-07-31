@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Biometric Registration</title>
+</head>
+<body>
+  <h2>Register Staff Biometric</h2>
+  <form id="registerForm">
+    <input type="email" id="email" placeholder="Enter staff email" required />
+    <button type="submit">Register</button>
+  </form>
+
+  <script src="https://unpkg.com/@simplewebauthn/browser/dist/simplewebauthn-browser.umd.min.js"></script>
+  <script>
+    const API = '/api/staff/webauthn';
+
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+
+      const res1 = await fetch(`${API}/generate-registration-options`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      const options = await res1.json();
+      const attResp = await SimpleWebAuthnBrowser.startRegistration(options);
+
+      const res2 = await fetch(`${API}/verify-registration`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, attestationResponse: attResp })
+      });
+
+      const result = await res2.json();
+      alert(result.verified ? 'Registration successful' : 'Registration failed');
+    });
+  </script>
+</body>
+</html>

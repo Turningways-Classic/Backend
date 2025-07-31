@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Biometric Login</title>
+</head>
+<body>
+  <h2>Staff Biometric Login</h2>
+  <form id="loginForm">
+    <input type="email" id="email" placeholder="Enter staff email" required />
+    <button type="submit">Login</button>
+  </form>
+
+  <script src="https://unpkg.com/@simplewebauthn/browser/dist/simplewebauthn-browser.umd.min.js"></script>
+  <script>
+    const API = '/api/staff/webauthn';
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+
+      const res1 = await fetch(`${API}/generate-authentication-options`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      const options = await res1.json();
+      const assertionResp = await SimpleWebAuthnBrowser.startAuthentication(options);
+
+      const res2 = await fetch(`${API}/verify-authentication`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, assertionResponse: assertionResp })
+      });
+
+      const result = await res2.json();
+      alert(result.verified ? `Login successful. Welcome ${result.staff.name}` : 'Login failed');
+
+      if (result.verified) {
+        // Optional: Save token
+        localStorage.setItem('token', result.token);
+      }
+    });
+  </script>
+</body>
+</html>

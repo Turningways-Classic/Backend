@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Face Recognition Login</title>
+  <script defer src="https://unpkg.com/face-api.js"></script>
+</head>
+<body>
+  <h2>Staff Face Login</h2>
+  <video id="video" width="300" height="225" autoplay muted></video>
+  <br>
+  <button onclick="scanFace()">Login with Face</button>
+
+  <script>
+    const video = document.getElementById('video');
+
+    Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri('/models/tiny_face_detector'),
+      faceapi.nets.faceRecognitionNet.loadFromUri('/models/face_recognition_model'),
+      faceapi.nets.faceLandmark68Net.loadFromUri('/models/face_landmark_68')
+    ]).then(startVideo);
+
+    function startVideo() {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then((stream) => video.srcObject = stream)
+        .catch((err) => console.error("Camera error:", err));
+    }
+
+    async function scanFace() {
+      const detection = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) return alert('No face detected. Try again.');
+
+      const descriptor = Array.from(detection.descriptor); // Convert Float32Array to Array
+
+      const res = await fetch('/face-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ face_descriptor: descriptor })
+      });
+
+      const result = await res.json();
+
+      if (result.verified) {
+        alert(`Login success! Welcome ${result.staff.name}`);
+      } else {
+        alert('Face not recognized.');
+      }
+    }
+  </script>
+</body>
+</html>

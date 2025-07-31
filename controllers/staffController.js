@@ -3,6 +3,20 @@ const supabase = require('../supabase/client');
 const generateToken = require('../utils/generateToken');
 const sendEmail = require('../utils/emailService');
 
+const {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse
+} = require('@simplewebauthn/server');
+
+const rpName = 'Trackar';
+const rpID = 'localhost'; // Change to your domain in prod
+const origin = 'http://localhost:3000'; // Or your frontend domain
+
+// Store challenge in memory for demo (in production use Redis or DB)
+const challengeStore = new Map();
+
 function generatePin() {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
@@ -141,3 +155,183 @@ exports.getAllUsers = async (req, res) => {
   const { data } = await supabase.from('staff').select('*');
   res.json(data);
 };
+
+//face recognition login
+
+function cosineSimilarity(vecA, vecB) {
+  const dot = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+  const magA = Math.sqrt(vecA.reduce((sum, val) => sum + val * val, 0));
+  const magB = Math.sqrt(vecB.reduce((sum, val) => sum + val * val, 0));
+  return dot / (magA * magB);
+}
+
+exports.faceLogin = async (req, res) => {
+  const { face_descriptor } = req.body;
+
+  if (!face_descriptor) return res.status(400).json({ error: 'No face descriptor received' });
+
+  const { data: staffList } = await supabase.from('staff').select('id, name, email, face_descriptor');
+
+  for (const staff of staffList) {
+    if (!staff.face_descriptor) continue;
+
+    const storedVector = JSON.parse(staff.face_descriptor);
+    const similarity = cosineSimilarity(face_descriptor, storedVector);
+
+    if (similarity >= 0.95) {
+      const token = generateToken({ id: staff.id, role: 'staff' });
+      return res.json({ verified: true, staff, token });
+    }
+  }
+
+  res.json({ verified: false });
+};
+
+exports.faceRegister = async (req, res) => {
+  const { email, face_descriptor } = req.body;
+
+  if (!email || !face_descriptor) {
+    return res.status(400).json({ error: 'Missing email or face descriptor' });
+  }
+
+  const { error } = await supabase
+    .from('staff')
+    .update({
+      face_descriptor: JSON.stringify(face_descriptor),
+    })
+    .eq('email', email);
+
+  if (error) {
+    console.error('Supabase error:', error);
+    return res.status(500).json({ registered: false });
+  }
+
+  res.json({ registered: true });
+};
+
+
+
+
+
+
+
+//webauthn registration and authentication
+
+
+// exports.generateRegistrationOptions = async (req, res) => {
+//   const { email } = req.body;
+
+//   const { data: staff } = await supabase.from('staff').select('*').eq('email', email).maybeSingle();
+
+//   if (!staff) return res.status(404).json({ error: 'Staff not found' });
+
+//   const options = generateRegistrationOptions({
+//     rpName,
+//     rpID,
+//     userID: staff.id,
+//     userName: staff.email,
+//     timeout: 60000,
+//     attestationType: 'indirect',
+//     authenticatorSelection: {
+//       userVerification: 'required',
+//       authenticatorAttachment: 'platform', // biometric
+//     },
+//   });
+
+//   challengeStore.set(staff.email, options.challenge);
+//   res.json(options);
+// };
+
+// exports.verifyRegistration = async (req, res) => {
+//   const { email, attestationResponse } = req.body;
+
+//   const expectedChallenge = challengeStore.get(email);
+//   const verification = await verifyRegistrationResponse({
+//     response: attestationResponse,
+//     expectedChallenge,
+//     expectedOrigin: origin,
+//     expectedRPID: rpID,
+//   });
+
+//   const { verified, registrationInfo } = verification;
+
+//   if (verified) {
+//     const { credentialPublicKey, credentialID, counter } = registrationInfo;
+
+//     await supabase.from('staff')
+//       .update({
+//         credential_id: credentialID.toString('base64url'),
+//         credential_public_key: credentialPublicKey.toString('base64url'),
+//         credential_counter: counter,
+//       })
+//       .eq('email', email);
+
+//     return res.json({ verified: true });
+//   }
+
+//   res.status(400).json({ verified: false });
+// };
+
+// exports.generateAuthenticationOptions = async (req, res) => {
+//   const { email } = req.body;
+
+//   const { data: staff } = await supabase.from('staff').select('*').eq('email', email).maybeSingle();
+//   if (!staff || !staff.credential_id) return res.status(404).json({ error: 'Biometric not registered' });
+
+//   const options = generateAuthenticationOptions({
+//     timeout: 60000,
+//     allowCredentials: [
+//       {
+//         id: Buffer.from(staff.credential_id, 'base64url'),
+//         type: 'public-key',
+//       },
+//     ],
+//     userVerification: 'required',
+//     rpID,
+//   });
+
+//   challengeStore.set(email, options.challenge);
+//   res.json(options);
+// };
+
+// exports.verifyAuthentication = async (req, res) => {
+//   const { email, assertionResponse } = req.body;
+
+//   const { data: staff } = await supabase.from('staff').select('*').eq('email', email).maybeSingle();
+
+//   if (!staff) return res.status(404).json({ error: 'Staff not found' });
+
+//   const expectedChallenge = challengeStore.get(email);
+
+//   const verification = await verifyAuthenticationResponse({
+//     response: assertionResponse,
+//     expectedChallenge,
+//     expectedOrigin: origin,
+//     expectedRPID: rpID,
+//     authenticator: {
+//       credentialID: Buffer.from(staff.credential_id, 'base64url'),
+//       credentialPublicKey: Buffer.from(staff.credential_public_key, 'base64url'),
+//       counter: staff.credential_counter,
+//     },
+//   });
+
+//   const { verified, authenticationInfo } = verification;
+
+//   if (verified) {
+//     // Update the counter to prevent replay
+//     await supabase.from('staff').update({
+//       credential_counter: authenticationInfo.newCounter,
+//     }).eq('email', email);
+
+//     // Sign JWT
+//     const token = generateToken({ id: staff.id, role: 'staff' });
+
+//     return res.json({
+//       verified: true,
+//       token,
+//       staff: { id: staff.id, name: staff.name, email: staff.email }
+//     });
+//   }
+
+//   res.status(401).json({ verified: false });
+// };
