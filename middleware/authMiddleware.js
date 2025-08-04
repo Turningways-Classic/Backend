@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const isRole = (role) => (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'No token provided' });
@@ -13,12 +14,46 @@ const isRole = (role) => (req, res, next) => {
     req.user = decoded;
     next();
   } catch (err) {
-    res.status(401).json({ error: 'Invalid token' });
+    res.status(401).json({ error: 'Invalid admin token ' });
   }
 };
+// const protect = (req, res, next) => {
+//   const token = req.headers.authorization?.split(' ')[1];
+//   // console.log('Token:', token); // Debugging line to check token presence
+//   if (!token) return res.status(401).json({ error: 'No token provided' });
 
+//   try {
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET)
+//     console.log('Decoded token:', decoded); // Debugging line to check decoded token
+//     req.user = decoded; // contains id, role, organization_id
+//     console.log('Decoded user:', req.user); // Debugging line to check decoded user
+//     next();
+//   } catch (err) {
+//     return res.status(401).json({ error: 'Invalid token' });
+//   }
+// };
+
+
+const protect = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  console.log('Auth Header:', authHeader);
+
+  const token = authHeader?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'No token provided' });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Decoded:', decoded);  // this won't run if verification fails
+    req.user = decoded;
+    next();
+  } catch (err) {
+    console.error('JWT verification failed:', err.message);  // this is key
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+};
 module.exports = {
   isAdmin: isRole('admin'),
   isSuperAdmin: isRole('superadmin'),
   isRole, // Dynamic role checker (e.g., isRole('report_admin'))
+  protect,
 };

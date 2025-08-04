@@ -3,13 +3,13 @@ const supabase = require('../supabase/client');
 
 cron.schedule('0 0 * * *', async () => {
   const { data: activeLogs } = await supabase
-    .from('access_logs')
+    .from('logs')
     .select('*')
     .is('sign_out', null);
 
   for (const log of activeLogs) {
     await supabase
-      .from('access_logs')
+      .from('logs')
       .update({ sign_out: new Date().toISOString() })
       .eq('id', log.id);
   }

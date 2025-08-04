@@ -17,6 +17,7 @@ exports.otpLimiter = rateLimit({
 
 exports.visitorSignup = async (req, res) => {
   const { name, phone, email, pin } = req.body;
+  
 
   if (!/^\d{4,6}$/.test(pin)) {
     return res.status(400).json({ error: 'PIN must be 4 to 6 digits.' });
@@ -52,10 +53,12 @@ exports.visitorSignup = async (req, res) => {
   const otp = generateOTP();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+  const orgId = req.user.organization_id
+
   // Save OTP + temporary data
   const { error } = await supabase
     .from('otps')
-    .insert([{ email, otp, expires_at: expiresAt.toISOString(), metadata: { name, phone, hashedPin } }]);
+    .insert([{ email, otp, expires_at: expiresAt.toISOString(), metadata: { name, phone: phoneNumber.number, hashedPin, orgId  } }]);
 
   if (error) return res.status(400).json({ error: error.message });
 
@@ -64,8 +67,12 @@ exports.visitorSignup = async (req, res) => {
 };
 
 exports.verifyVisitorOTP = async (req, res) => {
-  const { email, otp } = req.body;
+  let { email, otp } = req.body;
+  const orgId = req.user.organization_id;
 
+  email = email.trim().toLowerCase();
+
+  // 1. Get OTP entry
   const { data: otpEntry, error: fetchError } = await supabase
     .from('otps')
     .select('*')
@@ -77,6 +84,7 @@ exports.verifyVisitorOTP = async (req, res) => {
     return res.status(400).json({ error: 'Invalid OTP or email' });
   }
 
+  // 2. Check OTP expiry
   if (new Date(otpEntry.expires_at) < new Date()) {
     return res.status(400).json({ error: 'OTP has expired' });
   }
@@ -87,39 +95,78 @@ exports.verifyVisitorOTP = async (req, res) => {
     return res.status(400).json({ error: 'OTP metadata is incomplete. Please try again.' });
   }
 
-  // Save verified user
+  // 3. Normalize phone number to international format
+  let normalizedPhone;
+  try {
+    const parsed = parsePhoneNumberWithError(phone, 'NG');
+    normalizedPhone = parsed.number;
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid phone number format' });
+  }
+
+  // 4. Prevent duplicate visitor signup (check by email or phone)
+  const { data: existingVisitor } = await supabase
+    .from('visitors')
+    .select('id')
+    .or(`email.eq.${email},phone.eq.${normalizedPhone}`)
+    .maybeSingle();
+
+  if (existingVisitor) {
+    return res.status(400).json({ error: 'User already exists. Please login instead.' });
+  }
+
+  // 5. Save new verified visitor
   const { error: saveError } = await supabase
     .from('visitors')
-    .insert([{ name, phone, email, pin: hashedPin, verified: true }]);
+    .insert([{
+      name,
+      phone: normalizedPhone,
+      email,
+      pin: hashedPin,
+      organization_id: orgId,
+      verified: true
+    }]);
 
   if (saveError) {
+    console.error('Save error:', saveError);
     return res.status(400).json({ error: 'Failed to create visitor record' });
   }
 
+  // 6. Delete OTP record
   await supabase.from('otps').delete().eq('email', email);
 
   res.json({ message: 'Congratulations. You have successfully signed up!' });
 };
 
 exports.visitorLogin = async (req, res) => {
-  const { phoneOrEmail, pin } = req.body;
+  let { phoneOrEmail, pin } = req.body;
 
   try {
-    // 1. Find visitor - use maybeSingle() instead of single()
+    // Normalize input
+    phoneOrEmail = phoneOrEmail.trim().toLowerCase();
+
+    // If it's a phone number, normalize to international format
+    if (/^\d{10,}$/.test(phoneOrEmail)) {
+      try {
+        const parsed = parsePhoneNumberWithError(phoneOrEmail, 'NG');
+        phoneOrEmail = parsed.number; // normalized E.164 format: +234...
+      } catch (err) {
+        return res.status(400).json({ error: 'Invalid phone number format' });
+      }
+    }
+
+    // 1. Find visitor by email or normalized phone
     const { data: visitor, error } = await supabase
       .from('visitors')
       .select('*')
-      .or(`phone.eq.${phoneOrEmail},email.eq.${phoneOrEmail}`)
-      .eq('verified', true)
-      .maybeSingle(); // Changed from .single() to .maybeSingle()
+      .or(`phone.eq.${phoneOrEmail},email.ilike.${phoneOrEmail}`) // ilike for email
+      .maybeSingle();
 
-    // Handle the error from the query
     if (error) {
       console.error('Database error:', error);
       return res.status(500).json({ error: 'Database error occurred' });
     }
 
-    // Check if visitor exists
     if (!visitor) {
       return res.status(404).json({ error: 'User has no record, kindly sign up' });
     }
@@ -130,20 +177,27 @@ exports.visitorLogin = async (req, res) => {
       return res.status(401).json({ error: 'Invalid PIN' });
     }
 
-    // 3. Proceed with login
+    // 3. Log access
     await supabase
       .from('logs')
-      .insert([{ 
-        phone: visitor.phone, 
-        type: 'visitor', 
-        sign_in: new Date().toISOString() 
+      .insert([{
+        phone: visitor.phone,
+        email: visitor.email,
+        type: 'visitor',
+        organization_id: visitor.organization_id,
+        sign_in: new Date().toISOString()
       }]);
 
-    const token = generateToken({ id: visitor.id, role: 'visitor' });
+    // 4. Generate JWT
+    const token = generateToken({
+      id: visitor.id,
+      role: 'visitor',
+      orgId: visitor.organization_id
+    });
 
-    res.json({ 
-      message: 'Signed in successfully', 
-      token 
+    res.json({
+      message: 'Signed in successfully',
+      token
     });
 
   } catch (err) {
@@ -283,12 +337,13 @@ exports.getVisitorProfile = async (req, res) => {
   // Get the latest appointment for the visitor
   const { data: appointment, error: appointmentError } = await supabase
     .from('visitor_appointments')
-    .select('purpose')
+    .select('purpose_of_visit')
     .eq('visitor_id', visitor.id)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
+  console.log("Appointment:", appointment); // Debugging line
   if (appointmentError) {
     return res.status(500).json({ error: 'Failed to fetch appointment info' });
   }
@@ -296,7 +351,7 @@ exports.getVisitorProfile = async (req, res) => {
   res.json({
     name: visitor.name,
     email: visitor.email,
-    purpose: appointment?.purpose || 'N/A'
+    purpose: appointment?.purpose_of_visit || 'N/A'
   });
 };
 

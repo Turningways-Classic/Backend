@@ -1,15 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const visitorController = require('../controllers/visitorController');
+const { protect } = require('../middleware/authMiddleware'); // Importing protect middleware
 
 // Visitor endpoints
-router.post('/signup', visitorController.otpLimiter, visitorController.visitorSignup);
-router.post('/verify-otp',visitorController.otpLimiter, visitorController.verifyVisitorOTP);
-router.post('/login', visitorController.visitorLogin);
-router.post('/logout', visitorController.visitorLogout);
-router.post('/appointment', visitorController.storeVisitorAppointment);
-router.post('/photo', visitorController.uploadVisitorPhoto);
-router.get('/profile', visitorController.getVisitorProfile);
+router.post('/signup', protect, visitorController.otpLimiter, visitorController.visitorSignup);
+router.post('/verify-otp', protect, visitorController.otpLimiter, visitorController.verifyVisitorOTP);
+router.post('/login', protect, visitorController.visitorLogin);
+router.post('/logout', protect, visitorController.visitorLogout);
+router.post('/appointment', protect, visitorController.storeVisitorAppointment);
+router.post('/photo', protect, visitorController.uploadVisitorPhoto);
+router.get('/profile', protect, visitorController.getVisitorProfile);
 
 
 

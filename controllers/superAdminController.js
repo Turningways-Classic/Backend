@@ -18,12 +18,15 @@ exports.createAdmin = async (req, res) => {
   const tempPin = generatePin();
   const hashedPin = await bcrypt.hash(tempPin, 10);
 
+  const orgId = req.user.organization_id;
+
   const { error } = await supabase.from('staff').insert([{
     name,
     email,
     phone,
     department,
     job_title,
+    organization_id: orgId,
     role: 'admin', // Explicitly set role
     password: hashedPin,
     is_first_login: true,
@@ -42,12 +45,16 @@ exports.createAdmin = async (req, res) => {
 };
 
 exports.getAdmins = async (req, res) => {
+  const orgId = req.user.organization_id;
+
   const { data: admins, error } = await supabase
     .from('staff')
     .select('*')
-    .eq('role', 'admin');
+    .eq('role', 'admin')
+    .eq('organization_id', orgId);
 
   if (error) return res.status(400).json({ error: error.message });
 
   res.status(200).json(admins);
 };
+

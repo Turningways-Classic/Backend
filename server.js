@@ -5,7 +5,9 @@ const path = require('path');
 const visitorRoutes = require('./routes/visitorRoutes');
 const generalRoutes = require('./routes/generalRoutes');
 const staffRoutes = require('./routes/staffRoutes');
-const superAdminRoutes = require('./routes/superAdminRoutes');
+const orgRoutes = require('./routes/orgRoutes');
+const feedbackRoutes = require('./routes/feedbackRoutes');
+const superAdminRoutes = require('./routes/superadminRoutes');
 require('./cron/autoSignOut');
 
 const app = express();
@@ -28,6 +30,9 @@ app.get('/staff-signin', (req, res) => {
 app.get('/staff-logout', (req, res) => {
   res.render('logout');
 });
+app.use('/api/feedback', feedbackRoutes )
+app.use('/api/organization', orgRoutes);
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Trakar backend running on port ${PORT}`));

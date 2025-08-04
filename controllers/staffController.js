@@ -3,19 +3,19 @@ const supabase = require('../supabase/client');
 const generateToken = require('../utils/generateToken');
 const sendEmail = require('../utils/emailService');
 
-const {
-  generateAuthenticationOptions,
-  generateRegistrationOptions,
-  verifyAuthenticationResponse,
-  verifyRegistrationResponse
-} = require('@simplewebauthn/server');
+// const {
+//   generateAuthenticationOptions,
+//   generateRegistrationOptions,
+//   verifyAuthenticationResponse,
+//   verifyRegistrationResponse
+// } = require('@simplewebauthn/server');
 
-const rpName = 'Trackar';
-const rpID = 'localhost'; // Change to your domain in prod
-const origin = 'http://localhost:3000'; // Or your frontend domain
+// const rpName = 'Trackar';
+// const rpID = 'localhost'; // Change to your domain in prod
+// const origin = 'http://localhost:3000'; // Or your frontend domain
 
-// Store challenge in memory for demo (in production use Redis or DB)
-const challengeStore = new Map();
+// // Store challenge in memory for demo (in production use Redis or DB)
+// const challengeStore = new Map();
 
 function generatePin() {
   return Math.floor(1000 + Math.random() * 9000).toString();
@@ -23,14 +23,15 @@ function generatePin() {
 
 
 exports.registerStaff = async (req, res) => {
-  const { name, gender, phone, email, department, jobTitle, qr_code_id } = req.body;
+  const { name, gender, phone, email, department, jobTitle, qr_code_id, role } = req.body;
+  const orgId = req.user.organization_id
 
   const pin  = generatePin();
   const hashedPin = await bcrypt.hash(pin, 10);
 
   const { error } = await supabase
     .from('staff')
-    .insert([{ name, gender, phone, email, department, job_title: jobTitle, qr_code_id, password: hashedPin, is_first_login: true }]);
+    .insert([{ name, gender, phone, email, department, job_title: jobTitle, role, organization_id: orgId,  qr_code: qr_code_id, password: hashedPin, is_first_login: true }]);
 
 
   if (error) return res.status(400).json({ error: error.message });
@@ -49,19 +50,21 @@ exports.staffLogin = async (req, res) => {
   const { data: staff } = await supabase
     .from('staff')
     .select('*')
-    .or(`phone.eq.${identifier},email.eq.${identifier},qr_code_id.eq.${identifier}`)
+    .or(`phone.eq.${identifier},email.eq.${identifier},qr_code.eq.${identifier}`)
     .maybeSingle();
 
-  if (!staff) return res.status(404).json({ error: 'Invalid ID or unknown credentials' });
+  console.log(`Staff : ${JSON.stringify(staff)}`); // For debugging, remove in production
+
+  if (!staff) return res.status(404).json({ error: ' unknown credentials' });
 
   const isMatch = await bcrypt.compare(pin, staff.password);
   if (!isMatch) return res.status(401).json({ error: 'Invalid ID or unknown credentials' });
 
   await supabase
     .from('logs')
-    .insert([{ phone: staff.phone, type: 'staff', sign_in: new Date().toISOString() }]);
+    .insert([{ phone: staff.phone, email : staff.email, type: 'staff', organization_id: staff.organization_id, sign_in: new Date().toISOString() }]);
 
-  const token = generateToken({ id: staff.id, role: staff.role });
+  const token = generateToken({ id: staff.id, role: staff.role, orgId: staff.organization_id });
 
   res.json({
     staff,
@@ -77,7 +80,7 @@ exports.staffLogout = async (req, res) => {
   const { data: staff } = await supabase
     .from('staff')
     .select('*')
-    .or(`phone.eq.${identifier},email.eq.${identifier},qr_code_id.eq.${identifier}`)
+    .or(`phone.eq.${identifier},email.eq.${identifier},qr_code.eq.${identifier}`)
     .maybeSingle();
 
   if (!staff) return res.status(404).json({ error: 'Staff not found' });
@@ -129,85 +132,75 @@ exports.changePassword = async (req, res) => {
   res.json({ message: 'Password updated successfully. You can now log in normally.' });
 };
 
-exports.getDashboardStats = async (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
-
-  // Today's check-ins (staff + visitors)
-  const { data: todayLogs } = await supabase
-    .from('logs')
-    .select('*')
-    .gte('sign_in', `${today}T00:00:00`);
-
-  // Failed access attempts (example: no matching user)
-  const { data: failedLogs } = await supabase
-    .from('failed_access_logs') // Ensure this table exists
-    .select('*')
-    .gte('created_at', `${today}T00:00:00`);
-
-  res.json({
-    today_checkins: todayLogs.length,
-    failed_access: failedLogs.length,
-    active_devices: 550, // Hardcoded for now (update with real data)
-  });
-};
 
 exports.getAllUsers = async (req, res) => {
-  const { data } = await supabase.from('staff').select('*');
+  const orgId = req.user.organization_id;
+
+  const { data, error } = await supabase
+    .from('staff')
+    .select('*')
+    .eq('organization_id', orgId);
+
+  if (error) {
+    console.error('Error fetching users:', error);
+    return res.status(500).json({ error: 'Failed to fetch users' });
+  }
+
   res.json(data);
 };
 
 //face recognition login
 
-function cosineSimilarity(vecA, vecB) {
-  const dot = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
-  const magA = Math.sqrt(vecA.reduce((sum, val) => sum + val * val, 0));
-  const magB = Math.sqrt(vecB.reduce((sum, val) => sum + val * val, 0));
-  return dot / (magA * magB);
-}
+// function cosineSimilarity(vecA, vecB) {
+//   const dot = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+//   const magA = Math.sqrt(vecA.reduce((sum, val) => sum + val * val, 0));
+//   const magB = Math.sqrt(vecB.reduce((sum, val) => sum + val * val, 0));
+//   return dot / (magA * magB);
+// }
 
-exports.faceLogin = async (req, res) => {
-  const { face_descriptor } = req.body;
+// exports.faceLogin = async (req, res) => {
+//   const { face_descriptor } = req.body;
 
-  if (!face_descriptor) return res.status(400).json({ error: 'No face descriptor received' });
+//   if (!face_descriptor) return res.status(400).json({ error: 'No face descriptor received' });
 
-  const { data: staffList } = await supabase.from('staff').select('id, name, email, face_descriptor');
+//   const { data: staffList } = await supabase.from('staff').select('id, name, email, face_descriptor');
 
-  for (const staff of staffList) {
-    if (!staff.face_descriptor) continue;
+//   for (const staff of staffList) {
+//     if (!staff.face_descriptor) continue;
 
-    const storedVector = JSON.parse(staff.face_descriptor);
-    const similarity = cosineSimilarity(face_descriptor, storedVector);
+//     const storedVector = JSON.parse(staff.face_descriptor);
+//     const similarity = cosineSimilarity(face_descriptor, storedVector);
 
-    if (similarity >= 0.95) {
-      const token = generateToken({ id: staff.id, role: 'staff' });
-      return res.json({ verified: true, staff, token });
-    }
-  }
+//     if (similarity >= 0.95) {
+//       const token = generateToken({ id: staff.id, role: 'staff', orgId: staff.organization_id });
+//       return res.json({ verified: true, staff, token });
+//     }
+//   }
 
-  res.json({ verified: false });
-};
+//   res.json({ verified: false });
+// };
 
-exports.faceRegister = async (req, res) => {
-  const { email, face_descriptor } = req.body;
+// exports.faceRegister = async (req, res) => {
+//   const { email, face_descriptor } = req.body;
 
-  if (!email || !face_descriptor) {
-    return res.status(400).json({ error: 'Missing email or face descriptor' });
-  }
+//   if (!email || !face_descriptor) {
+//     return res.status(400).json({ error: 'Missing email or face descriptor' });
+//   }
 
-  const { error } = await supabase
-    .from('staff')
-    .update({
-      face_descriptor: JSON.stringify(face_descriptor),
-    })
-    .eq('email', email);
+//   const { error } = await supabase
+//     .from('staff')
+//     .update({
+//       face_descriptor: JSON.stringify(face_descriptor),
+//     })
+//     .eq('email', email);
 
-  if (error) {
-    console.error('Supabase error:', error);
-    return res.status(500).json({ registered: false });
-  }
+//   if (error) {
+//     console.error('Supabase error:', error);
+//     return res.status(500).json({ registered: false });
+//   }
 
-  res.json({ registered: true });
-};
+//   res.json({ registered: true });
+// };
 
 
 
