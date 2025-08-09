@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const orgController = require('../controllers/organizationController');
+const { isSuperAdmin } = require('../middlewares/authMiddleware');
+
+router.delete('/:organizationId', isSuperAdmin, deleteOrganization);
 
 router.post('/signup', orgController.registerOrganization);
 

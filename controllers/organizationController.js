@@ -66,3 +66,53 @@ exports.registerOrganization = async (req, res) => {
     return res.status(500).json({ error: 'Server error' });
   }
 };
+
+exports.deleteOrganization = async (req, res) => {
+  const { organizationId } = req.params;
+
+  try {
+    // 1. Delete access logs tied to the organization
+    const { error: accessLogError } = await supabase
+      .from('access_logs')
+      .delete()
+      .eq('organization_id', organizationId);
+
+    if (accessLogError) {
+      return res.status(400).json({ error: `Error deleting access logs: ${accessLogError.message}` });
+    }
+
+    // 2. Delete visitors tied to the organization
+    const { error: visitorError } = await supabase
+      .from('visitors')
+      .delete()
+      .eq('organization_id', organizationId);
+
+    if (visitorError) {
+      return res.status(400).json({ error: `Error deleting visitors: ${visitorError.message}` });
+    }
+
+    // 3. Delete staff tied to the organization
+    const { error: staffError } = await supabase
+      .from('staff')
+      .delete()
+      .eq('organization_id', organizationId);
+
+    if (staffError) {
+      return res.status(400).json({ error: `Error deleting staff: ${staffError.message}` });
+    }
+
+    // 4. Finally, delete the organization itself
+    const { error: orgError } = await supabase
+      .from('organizations')
+      .delete()
+      .eq('id', organizationId);
+
+    if (orgError) {
+      return res.status(400).json({ error: `Error deleting organization: ${orgError.message}` });
+    }
+
+    res.status(200).json({ message: 'Organization and all related data deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+};
