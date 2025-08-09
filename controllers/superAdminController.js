@@ -7,6 +7,30 @@ function generatePin() {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
+exports.superAdminLogin = async (req, res) => {
+  const { email, password } = req.body;
+
+  const { data: superAdmin, error } = await supabase
+    .from('super_admin')
+    .select('*')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (error) return res.status(400).json({ error: error.message });
+  if (!superAdmin) return res.status(401).json({ error: 'Invalid credentials' });
+
+  const isMatch = await bcrypt.compare(password, superAdmin.password);
+  if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
+
+  const token = jwt.sign(
+    { id: superAdmin.id, role: 'superadmin', org_id: superAdmin.organization_id },
+    process.env.JWT_SECRET,
+    { expiresIn: '1d' }
+  );
+
+  res.json({ token, user: superAdmin });
+};
+
 
 exports.createAdmin = async (req, res) => {
   // Ensure only superadmin can call this

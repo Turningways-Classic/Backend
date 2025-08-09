@@ -4,6 +4,7 @@ const { isSuperAdmin, protect} = require('../middleware/authMiddleware'); // Upd
 const superadminController = require('../controllers/superAdminController');
 
 // Superadmin-only routes
+router.post('/login', superadminController.superAdminLogin); // Superadmin login
 router.post('/create-admin', protect, isSuperAdmin, superadminController.createAdmin);
 router.get('/admins', isSuperAdmin, superadminController.getAdmins); // Optional: List all admins
 
