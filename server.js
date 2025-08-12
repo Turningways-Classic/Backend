@@ -8,6 +8,8 @@ const staffRoutes = require('./routes/staffRoutes');
 const orgRoutes = require('./routes/orgRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
 const superAdminRoutes = require('./routes/superadminRoutes');
+const userStatsRoutes = require('./routes/userStatsRoutes');
+const statsRoutes = require('./routes/statsRoutes');
 require('./cron/autoSignOut');
 
 const app = express();
@@ -24,6 +26,7 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/visitor', visitorRoutes);
 app.use('/api', generalRoutes);
 app.use('/api/superadmin', superAdminRoutes);
+app.use('/api/user-stats', userStatsRoutes);
 app.get('/staff-signin', (req, res) => {
   res.render('staff-signin');
 });
@@ -32,6 +35,7 @@ app.get('/staff-logout', (req, res) => {
 });
 app.use('/api/feedback', feedbackRoutes )
 app.use('/api/organization', orgRoutes);
+app.use("/api/facility-stats", statsRoutes );
 
 
 const PORT = process.env.PORT || 5000;
