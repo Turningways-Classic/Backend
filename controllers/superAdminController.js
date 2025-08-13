@@ -31,6 +31,10 @@ exports.superAdminLogin = async (req, res) => {
   res.json({ token, user: superAdmin });
 };
 
+exports.superAdminLogout = async (req, res) => {
+  // frontend, delete token from localStorage
+  res.json({ message: 'Logged out successfully. Please clear your token from storage.' });
+};
 
 exports.createAdmin = async (req, res) => {
   // Ensure only superadmin can call this

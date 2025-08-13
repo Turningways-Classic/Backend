@@ -355,3 +355,36 @@ exports.getVisitorProfile = async (req, res) => {
   });
 };
 
+
+exports.getAllVisitors = async (req, res) => {
+  const orgId = req.user.organization_id;
+
+  const { data, error } = await supabase
+    .from('visitors')
+    .select('*')
+    .eq('organization_id', orgId);
+
+  if (error) {
+    console.error('Error fetching users:', error);
+    return res.status(500).json({ error: 'Failed to fetch users' });
+  }
+
+  res.json(data);
+};
+
+exports.getVisitorById = async (req, res) => {
+  const { id } = req.params;
+
+  const { data: visitor, error } = await supabase
+    .from('visitors')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error || !visitor) {
+    return res.status(404).json({ error: 'Visitor not found' });
+  }
+
+  res.json(visitor);
+}
+

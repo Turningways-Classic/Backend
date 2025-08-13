@@ -58,6 +58,8 @@ exports.registerOrganization = async (req, res) => {
 
     return res.status(201).json({
       message: 'Organization and superadmin created',
+      organization_name: name,
+      superadmin_email: adminEmail,
       token,
     });
 

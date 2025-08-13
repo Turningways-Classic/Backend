@@ -34,10 +34,10 @@ exports.getUserStats = async (req, res) => {
 
     // Fetch access logs for the user
     const { data: logs, error: logError } = await supabase
-      .from('access_logs')
-      .select('check_in_time, check_out_time')
-      .eq('user_id', userId)
-      .order('check_in_time', { ascending: false });
+      .from('logs')
+      .select('sign_in, sign_out')
+      .eq('id', userId)
+      .order('sign_in', { ascending: false });
 
     if (logError) throw logError;
 

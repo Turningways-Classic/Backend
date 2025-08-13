@@ -11,6 +11,8 @@ router.post('/logout', protect, visitorController.visitorLogout);
 router.post('/appointment', protect, visitorController.storeVisitorAppointment);
 router.post('/photo', protect, visitorController.uploadVisitorPhoto);
 router.get('/profile', protect, visitorController.getVisitorProfile);
+router.get('/visitors', protect, visitorController.getAllVisitors);
+router.get('/visitor/:visitorId', protect, visitorController.getVisitorById);
 
 
 
