@@ -11,7 +11,7 @@ exports.superAdminLogin = async (req, res) => {
   const { email, password } = req.body;
 
   const { data: superAdmin, error } = await supabase
-    .from('super_admin')
+    .from('super_admins')
     .select('*')
     .eq('email', email)
     .maybeSingle();
