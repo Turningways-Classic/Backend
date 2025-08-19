@@ -2,6 +2,7 @@
 const bcrypt = require('bcryptjs');
 const supabase = require('../supabase/client');
 const sendEmail = require('../utils/emailService');
+const jwt = require('jsonwebtoken');
 
 function generatePin() {
   return Math.floor(1000 + Math.random() * 9000).toString();
